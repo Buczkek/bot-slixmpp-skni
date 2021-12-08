@@ -1,5 +1,6 @@
 import os.path
 import json
+import types
 
 import logging
 import asyncio
@@ -12,6 +13,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 CONFIGFILENAME = "config.json"
+COMMAND_PREFIX = '/'
 
 
 class EchoBot(ClientXMPP):
@@ -19,8 +21,10 @@ class EchoBot(ClientXMPP):
     def __init__(self, jid, password):
         ClientXMPP.__init__(self, jid, password)
 
-        self.add_event_handler("session_start", self.session_start)
-        self.add_event_handler("message", self.message)
+        self.add_event_handler("session_start", self.on_session_start)
+        self.add_event_handler("message", self.on_message)
+
+        self.commands = {}
 
         # If you wanted more functionality, here's how to register plugins:
         # self.register_plugin('xep_0030') # Service Discovery
@@ -34,7 +38,7 @@ class EchoBot(ClientXMPP):
         # import ssl
         # self.ssl_version = ssl.PROTOCOL_SSLv3
 
-    def session_start(self, event):
+    def on_session_start(self, event):
         self.send_presence()
         self.get_roster()
 
@@ -51,9 +55,25 @@ class EchoBot(ClientXMPP):
         #     logging.error('Server is taking too long to respond')
         #     self.disconnect()
 
-    def message(self, msg):
+    def on_message(self, msg):
         if msg['type'] in ('chat', 'normal'):
             msg.reply(f"Żyje! {msg['body']}").send()
+
+    def bind_command(self, command: str, function: types.FunctionType):
+        assert command.isalpha(), "command name should be only made of alphabet letters"
+        self.commands[command] = function
+        return True
+
+    def unbind_command(self, command):
+        func = self.commands.get(command)
+        if func is not None:
+            self.commands.pop(command)
+            return True
+        return False
+
+    def add_command_reply(self):
+        pass
+
 
 
 if __name__ == '__main__':
@@ -83,6 +103,26 @@ if __name__ == '__main__':
             json.dump({"jid": JID, "password": PASSWORD}, file, indent=4)
         print("Created config file, fill it!")
         sys.exit(1)
+
+
+
+
+def process_command(message):
+    body = message['body']
+    if not body.startswith(COMMAND_PREFIX):
+        return False
+
+    temp = body[1:].split(' ')
+    command = temp[0]
+    args = temp[1:]
+
+
+def echo(args):
+    pass
+
+
+
+
 
     xmpp = EchoBot(JID, PASSWORD)
     xmpp.connect()
