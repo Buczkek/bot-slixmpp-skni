@@ -13,7 +13,7 @@ if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 CONFIGFILENAME = "config.json"
-COMMAND_PREFIX = '/'
+COMMAND_PREFIX = '!'
 
 
 class EchoBot(ClientXMPP):
@@ -25,6 +25,9 @@ class EchoBot(ClientXMPP):
         self.add_event_handler("message", self.on_message)
 
         self.commands = {}
+        self.commands.setdefault('no_command', no_command_found)
+
+        self.bind_command('echo', echo)
 
         # If you wanted more functionality, here's how to register plugins:
         # self.register_plugin('xep_0030') # Service Discovery
@@ -57,7 +60,7 @@ class EchoBot(ClientXMPP):
 
     def on_message(self, msg):
         if msg['type'] in ('chat', 'normal'):
-            msg.reply(f"Żyje! {msg['body']}").send()
+            self.process_command(msg)
 
     def bind_command(self, command: str, function: types.FunctionType):
         assert command.isalpha(), "command name should be only made of alphabet letters"
@@ -74,11 +77,20 @@ class EchoBot(ClientXMPP):
     def add_command_reply(self):
         pass
 
+    def process_command(self, message):
+        body = message['body']
+        if not body.startswith(COMMAND_PREFIX):
+            return False
+
+        temp = body[1:].split(' ')
+        command = temp[0]
+        args = temp[1:]
+        reply = self.commands.get(command, no_command_found)(args)
+        if reply is not None:
+            message.reply(reply).send()
 
 
 if __name__ == '__main__':
-    # Ideally use optparse or argparse to get JID,
-    # password, and log level.
 
     logging.basicConfig(level=logging.DEBUG,
                         format='%(levelname)-8s %(message)s')
@@ -105,25 +117,15 @@ if __name__ == '__main__':
         sys.exit(1)
 
 
-
-
-def process_command(message):
-    body = message['body']
-    if not body.startswith(COMMAND_PREFIX):
-        return False
-
-    temp = body[1:].split(' ')
-    command = temp[0]
-    args = temp[1:]
-
-
 def echo(args):
-    pass
+    msg = ' '.join(args)
+    return msg
 
 
+def no_command_found(args):
+    return "No command found"
 
 
-
-    xmpp = EchoBot(JID, PASSWORD)
-    xmpp.connect()
-    xmpp.process(forever=True)
+xmpp = EchoBot(JID, PASSWORD)
+xmpp.connect()
+xmpp.process(forever=True)
